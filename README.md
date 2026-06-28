@@ -1,12 +1,19 @@
 # GA4 E-Commerce Data Mart: From Event Stream to Star Schema
 
-## Project Overview
-When working with real-world Google Analytics 4 (GA4) data in Google BigQuery, querying raw, nested event streams directly is an expensive and slow anti-pattern. 
+## Context & Learning Goals
+This is a hands-on learning project. My primary objective was to master the extraction and modeling of real-world, high-volume e-commerce data using the **Google BigQuery Sandbox** (zero-cost execution). 
 
-The goal of this project was to design and engineer a production-grade data mart using the public Google Merchandise Store dataset. I extracted a 500,000-row sample and transformed the deeply nested JSON arrays into a clean, 4-table Star Schema optimized for advanced product analytics.
+To navigate the complex architecture of Google Analytics 4 (such as nested JSON arrays and identity resolution) and to learn senior-level data engineering best practices, I utilized **Google Gemini** as an AI pair-programmer and architectural mentor throughout the extraction and ELT process.
+
+## Project Overview
+When working with real-world GA4 data in Google BigQuery, querying raw, nested event streams directly is an expensive and slow anti-pattern. 
+* **It is expensive** because BigQuery charges by data scanned. Querying raw tables forces the engine to scan gigabytes of unoptimized, nested JSON parameters every time a simple metric is requested.
+* **It is slow** because dynamically un-nesting arrays (like a user's shopping cart) at runtime requires heavy compute power.
+
+The goal of this project was to solve this by designing and engineering a production-grade data mart. Using the public Google Merchandise Store dataset, I extracted the complete 3-month dataset (Nov 1, 2020 - Jan 31, 2021) and transformed the deeply nested event stream into a clean, flat, 4-table Star Schema optimized for advanced product analytics.
 
 ## The Challenge
-* **Data Volume & Integrity:** Limiting row extraction on event streams mathematically breaks user conversion funnels.
+* **Data Volume & Integrity:** Standard row-limiting on event streams mathematically breaks user conversion funnels, requiring time-series extraction instead.
 * **Nested Data:** E-commerce product data is stored inside a nested `items` array, making standard user-level analysis insufficient for product merchandising questions.
 * **Session Fan-Out:** Mid-session device or IP network changes cause BigQuery to generate duplicate session rows, skewing conversion rates.
 
@@ -19,9 +26,10 @@ I built an ELT (Extract, Load, Transform) pipeline to create a structured Data M
 4. **`fct_product_interactions`:** Solved the product blind spot by utilizing `LEFT JOIN UNNEST()` to flatten the `items` array, creating a dedicated table for product-specific abandonment and merchandising analysis.
 
 ## Tools Used
-* **Google BigQuery:** Data extraction and schema engineering.
-* **SQL:** Cryptographic hash sampling (`FARM_FINGERPRINT`), JSON unnesting, and window functions.
-* **Google Drive Export Pipeline:** Bypassed standard BigQuery local download limits (16k rows) to extract full tables at zero cost.
+* **Google BigQuery Sandbox:** Zero-cost data extraction and schema engineering.
+* **SQL:** JSON unnesting, time-series partitioning, and window functions.
+* **Google Drive Export Pipeline:** Bypassed standard BigQuery local download limits (16k rows) to extract massive tables.
+* **Google Gemini:** AI assistance for query optimization, architectural planning, and debugging.
 
 
 - Guide to Download GMS Data using BigQuery Sandbox: [Read](https://github.com/csbishnoi670/Google_Merch_Store_Project/blob/main/Download_Data.md)
