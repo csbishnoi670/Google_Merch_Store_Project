@@ -1,69 +1,47 @@
-# GA4 E-Commerce Data Mart: From Event Stream to Star Schema
+# GA4 E-Commerce Data Mart: From Raw Event Stream to Advanced Analytics
 
-## Context & Learning Goals
-This is a hands-on learning project. My primary objective was to master the extraction and modeling of real-world, high-volume e-commerce data using the **Google BigQuery Sandbox** (zero-cost execution). 
-
-To navigate the complex architecture of Google Analytics 4 (such as nested JSON arrays and identity resolution) and to learn senior-level data engineering best practices, I utilized **Google Gemini** as an AI pair-programmer and architectural mentor throughout the extraction and ELT process.
-
-## Project Overview
-When working with real-world GA4 data in Google BigQuery, querying raw, nested event streams directly is an expensive and slow anti-pattern. 
-* **It is expensive** because BigQuery charges by data scanned. Querying raw tables forces the engine to scan gigabytes of unoptimized, nested JSON parameters every time a simple metric is requested.
-* **It is slow** because dynamically un-nesting arrays (like a user's shopping cart) at runtime requires heavy compute power.
-
-The goal of this project was to solve this by designing and engineering a production-grade data mart. Using the public Google Merchandise Store dataset, I extracted the complete 3-month dataset (Nov 1, 2020 - Jan 31, 2021) and transformed the deeply nested event stream into a clean, flat, 4-table Star Schema optimized for advanced product analytics.
-
-## The Challenge
-* **Data Volume & Integrity:** Standard row-limiting on event streams mathematically breaks user conversion funnels, requiring time-series extraction instead.
-* **Nested Data:** E-commerce product data is stored inside a nested `items` array, making standard user-level analysis insufficient for product merchandising questions.
-* **Session Fan-Out:** Mid-session device or IP network changes cause BigQuery to generate duplicate session rows, skewing conversion rates.
-
-## The Solution & Architecture
-I built an ELT (Extract, Load, Transform) pipeline to create a structured Data Mart:
-
-1. **`dim_users`:** Tracks customer lifetime value (LTV), session stickiness, and acquisition dates.
-2. **`dim_sessions`:** Tracks individual visits. I applied an `ANY_VALUE()` window function to device and geographic fields to eliminate the mid-session fan-out bug.
-3. **`fct_events`:** A chronological behavioral ledger tracking the core funnel (`page_view` ➔ `add_to_cart` ➔ `purchase`).
-4. **`fct_product_interactions`:** Solved the product blind spot by utilizing `LEFT JOIN UNNEST()` to flatten the `items` array, creating a dedicated table for product-specific abandonment and merchandising analysis.
+## 🎯 Executive Summary
+This project demonstrates end-to-end data engineering and advanced product analytics using high-volume e-commerce data from the **Google BigQuery Sandbox**. The objective was to bypass the inefficiencies of querying raw, nested JSON event streams by architecting a production-grade Star Schema, subsequently uncovering deep behavioral insights through advanced SQL.
 
 ---
 
-## 📊 Advanced SQL Product & App Analytics
-With the Star Schema successfully staged in PostgreSQL via DBeaver, I executed a series of advanced product analytics modules designed to mimic elite data team requirements. The core focus shifts away from basic operational counts into user psychology, velocity, and retention dynamics.
+## 🏗️ Phase 1: Data Architecture & ELT Pipeline
+Querying nested GA4 event streams directly is an expensive and slow anti-pattern. To optimize compute performance and query efficiency, I extracted three months of Google Merchandise Store data and engineered a **4-table Star Schema**:
 
-The full scripts are structured from core performance metrics to expert time-series implementations:
-
-### 🟢 Level 1: Foundational Commerce & Hierarchies
-* **Product Sales & Category Grain Matching:** Aggregates granular item-level transaction signals directly from `fct_product_interactions` without skewing root user dimensions or double-counting order totals.
-* **Multi-Level Reporting (ROLLUP):** Builds optimized hierarchical dashboard datasets grouping active traffic metrics across `device_type`, `operating_system`, and explicit grand total layers in a single query pass.
-
-### 🟡 Level 2: Intermediate User Engagement
-* **Session Depth Distribution:** Tracks engagement densities by segmenting traffic volume into behavioral tiers (Bounces, Shallow Browse, Core Engagement, Deep Sessions) based on transaction ledgers.
-* **Cross-Feature Adoption (Venn Diagram Overlap):** Validates feature stickiness by calculating the cross-talk conversion percentage between generic top-of-funnel browsers and bottom-of-funnel shoppers.
-* **Top-N Regional Spenders:** Utilizes analytical window functions (`DENSE_RANK()`) to identify and isolate the top 3 high-value macro-purchasers partitioned across individual cities.
-
-### 🟠 Level 3: Conversion Funnels & Performance Velocity
-* **Multi-Stage Structural Funnel:** Bridges the clickstream ledger and product matrix to construct an end-to-end e-commerce funnel tracking drop-offs across: `page_view` ➔ `view_item` ➔ `add_to_cart` ➔ `purchase`.
-* **Funnel Drop-off Velocity Analysis:** Tracks conversion speed (velocity) measuring the exact duration from initial site entry to a product milestone. 
-  * *Data Anomaly Resolution:* Successfully root-caused a data desynchronization where conflicting source timezones (UTC vs Local Server offsets) caused massive negative values space. Resolved via robust typecasting and epoch-based interval conversions: `ROUND((EXTRACT(EPOCH FROM AVG(first_cart_add_time - session_start_time)) / 60)::numeric, 2)`.
-
-### 🔴 Level 4: Retention Dynamics & Behavioral Pathing
-* **Feature Stickiness (DAU / MAU Ratio):** Evaluates if the digital storefront creates habit-forming loops by measuring the density ratio of daily active footprints relative to monthly active pools.
-* **Next-Event Forward Pathing:** Employs lead window offsets (`LEAD()`) to build string paths mapping exactly where a customer flows immediately after an error milestone or core action.
-* **RFM Customer Segmentation:** Computes mathematical distribution quartiles using `NTILE(4)` across Recency, Frequency, and Monetary parameters to tag historical shoppers into action profiles (VIP Champions, High Spenders, At-Risk Loyalists).
-
-### ⚫ Level 5: Time-Series Mastery (Gaps-and-Islands)
-* **Day 0 to Day 7 ($D0 \rightarrow D7$) Rolling Retention:** Maps cohort-based behavioral longevity, calculating exact relative return rates 1, 3, and 7 days post-acquisition.
-* **Consecutive Active Streaks:** Codes the classic **"Gaps and Islands"** database framework. By converting dense sequence row rankings into dynamic day intervals (`login_date - (date_rank * INTERVAL '1 day')`), the logic group-aggregates continuous day blocks to track maximum user engagement streaks.
+* **`dim_users`:** Centralizes customer lifetime value (LTV) and acquisition dates for cohort tracking.
+* **`dim_sessions`:** Aggregates individual visits. *Engineering note: Resolved mid-session device/IP fan-out duplicates utilizing `ANY_VALUE()` window functions.*
+* **`fct_events`:** A chronological behavioral ledger tracking the core user journey (`page_view` ➔ `view_item` ➔ `add_to_cart`).
+* **`fct_product_interactions`:** Flattened the deeply nested `items` array using `LEFT JOIN UNNEST()`, isolating granular product-level merchandising data.
 
 ---
 
-## Tools Used
-* **Google BigQuery Sandbox:** Zero-cost data extraction and schema engineering.
-* **SQL:** JSON unnesting, time-series partitioning, window functions, and Gaps-and-Islands streak tracking.
-* **Google Drive Export Pipeline:** Bypassed standard BigQuery local download limits (16k rows) to extract massive tables.
-* **Google Gemini:** AI assistance for query optimization, analytical planning, and pipeline debugging.
+## 📊 Phase 2: Advanced SQL Product Analytics
+Migrating the staged schema to PostgreSQL via DBeaver, I executed complex analytical modules targeting core business metrics, user psychology, and retention dynamics:
 
-## Project Resources
-* 📖 **Guide to Download GMS Data using BigQuery Sandbox:** [Read Guide](https://github.com/csbishnoi670/Google_Merch_Store_Project/blob/main/Download_Data.md)
-* 💻 **Advanced SQL Scripts Directory:** [Browse Scripts](./SQL%20Scripts/)
-* 💾 **Download Raw & Staged Datasets:** [Google Drive Data Folder](https://drive.google.com/drive/folders/1EiUCDL-IY5cYualbwJxt3zipWlMNqzpT?usp=sharing)
+### 🔹 Foundational Mechanics & Hierarchies
+* **Grain Matching:** Aggregated category revenue without duplicating root dimensions or inflating order totals.
+* **Executive Reporting (`ROLLUP`):** Generated multi-level hierarchical summaries of traffic metrics across devices and operating systems in a single optimized pass.
+
+### 🔹 Engagement & Conversion Velocity
+* **Session Depth Matrix:** Segmented traffic volume into distinct behavioral tiers (Bounce, Shallow, Core, Deep) based on interaction density.
+* **Cross-Feature Adoption:** Quantified the exact overlap percentage between top-of-funnel browsers and bottom-of-funnel shoppers.
+* **Conversion Velocity:** Measured the average time elapsed from site entry to `add_to_cart`. *Successfully debugged and resolved a cross-system timezone anomaly (UTC vs. Local Offset) using epoch-based interval casting.*
+
+### 🔹 Retention & Time-Series Mastery
+* **Feature Stickiness ($DAU / MAU$):** Calculated daily vs. monthly active user ratios to evaluate platform habit formation.
+* **RFM Segmentation:** Classified the user base into actionable profiles (VIP, At-Risk, High-Spender) utilizing `NTILE(4)` across Recency, Frequency, and Monetary parameters.
+* **Rolling Cohort Retention ($D0 \rightarrow D7$):** Mapped precise return rates 1, 3, and 7 days post-acquisition.
+* **Gaps-and-Islands (Active Streaks):** Converted sequence row rankings into dynamic day intervals to isolate and measure users' longest consecutive daily login streaks.
+
+---
+
+## 🛠️ Tech Stack & Tools
+* **Data Warehouse & ELT:** Google BigQuery Sandbox
+* **Analytics Engine:** PostgreSQL & DBeaver
+* **Techniques:** JSON Unnesting, Window Functions, Time-Series Analysis, Gaps-and-Islands
+* **AI Pair-Programming:** Google Gemini (for query optimization and pipeline architectural review)
+
+## 🔗 Project Links
+* 📖 **Extraction Guide:** [BigQuery Sandbox Download Process](./Download_Data.md)
+* 💻 **SQL Codebase:** [Advanced Analytics Scripts](./SQL%20Scripts/)
+* 💾 **Processed Datasets:** [Google Drive Repository](https://drive.google.com/drive/folders/1EiUCDL-IY5cYualbwJxt3zipWlMNqzpT?usp=sharing)
